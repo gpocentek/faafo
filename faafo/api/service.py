@@ -14,6 +14,7 @@ import base64
 import copy
 import cStringIO
 from pkg_resources import resource_filename
+import uuid as uuid_m
 
 import flask
 import flask.ext.restless
@@ -70,7 +71,8 @@ def list_opts():
 
 
 class Fractal(db.Model):
-    uuid = db.Column(db.String(36), primary_key=True)
+    uuid = db.Column(db.String(36), primary_key=True,
+                     default=lambda: str(uuid_m.uuid4()))
     checksum = db.Column(db.String(256), unique=True)
     url = db.Column(db.String(256), nullable=True)
     duration = db.Column(db.Float)
