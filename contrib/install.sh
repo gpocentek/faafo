@@ -28,7 +28,7 @@ if [[ -e /etc/os-release ]]; then
     URL_ENDPOINT='http://127.0.0.1'
     URL_MESSAGING='amqp://guest:guest@localhost:5672/'
 
-    while getopts e:m:d:i:r: FLAG; do
+    while getopts e:m:d:i:r:a:u:p:t: FLAG; do
         case $FLAG in
             i)
                 case $OPTARG in
@@ -66,6 +66,22 @@ if [[ -e /etc/os-release ]]; then
 
             d)
                 URL_DATABASE=$OPTARG
+            ;;
+
+            a)
+                SWIFT_AUTH_URL=$OPTARG
+            ;;
+
+            u)
+                SWIFT_USERNAME=$OPTARG
+            ;;
+
+            p)
+                SWIFT_PASSWORD=$OPTARG
+            ;;
+
+            t)
+                SWIFT_TENANT_NAME=$OPTARG
             ;;
 
             *)
@@ -132,9 +148,19 @@ if [[ -e /etc/os-release ]]; then
         sudo pip install -r requirements.txt
         sudo python setup.py install
 
-        sudo sed -i -e "s#transport_url = .*#transport_url = $URL_MESSAGING#" /etc/faafo/faafo.conf
-        sudo sed -i -e "s#database_url = .*#database_url = $URL_DATABASE#" /etc/faafo/faafo.conf
-        sudo sed -i -e "s#endpoint_url = .*#endpoint_url = $URL_ENDPOINT#" /etc/faafo/faafo.conf
+        cat > /tmp/faafo.conf << EOF
+[DEFAULT]
+transport_url = $URL_MESSAGING
+database_url = $URL_DATABASE
+endpoint_url = $URL_ENDPOINT
+
+[swift]
+auth_url = $SWIFT_AUTH_URL
+username = $SWIFT_USERNAME
+password = $SWIFT_PASSWORD
+tenant_name = $SWIFT_TENANT_NAME
+EOF
+        sudo mv /tmp/faafo.conf /etc/faafo/faafo.conf
     fi
 
 

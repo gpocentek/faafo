@@ -28,6 +28,7 @@ from PIL import Image
 from sqlalchemy.dialects import mysql
 
 from faafo import queues
+from faafo import swift
 from faafo import version
 
 LOG = log.getLogger('faafo.api')
@@ -84,13 +85,6 @@ class Fractal(db.Model):
     xb = db.Column(db.Float, nullable=False)
     ya = db.Column(db.Float, nullable=False)
     yb = db.Column(db.Float, nullable=False)
-
-    if CONF.database_url.startswith('mysql'):
-        LOG.debug('Using MySQL database backend')
-        image = db.Column(mysql.MEDIUMBLOB, nullable=True)
-    else:
-        image = db.Column(db.LargeBinary, nullable=True)
-
     generated_by = db.Column(db.String(256), nullable=True)
 
     def __repr__(self):
@@ -106,29 +100,13 @@ connection = Connection(CONF.transport_url)
 @app.route('/index', methods=['GET'])
 @app.route('/index/<int:page>', methods=['GET'])
 def index(page=1):
+    swiftc = swift.SwiftClient()
     fractals = Fractal.query.filter(
         (Fractal.checksum != None) & (Fractal.size != None)).paginate(  # noqa
             page, 5, error_out=False)
-    return flask.render_template('index.html', fractals=fractals)
-
-
-@app.route('/fractal/<string:fractalid>', methods=['GET'])
-def get_fractal(fractalid):
-    fractal = Fractal.query.filter_by(uuid=fractalid).first()
-    if not fractal:
-        response = flask.jsonify({'code': 404,
-                                  'message': 'Fracal not found'})
-        response.status_code = 404
-    else:
-        image_data = base64.b64decode(fractal.image)
-        image = Image.open(cStringIO.StringIO(image_data))
-        output = cStringIO.StringIO()
-        image.save(output, "PNG")
-        image.seek(0)
-        response = flask.make_response(output.getvalue())
-        response.content_type = "image/png"
-
-    return response
+    return flask.render_template('index.html',
+                                 swift_url=swiftc.container_url,
+                                 fractals=fractals)
 
 
 def generate_fractal(**kwargs):
@@ -140,9 +118,18 @@ def generate_fractal(**kwargs):
                          routing_key='normal')
 
 
+def delete_fractal(**kwargs):
+    swiftc = swift.SwiftClient()
+    try:
+        swiftc.delete_image(kwargs['instance_id'])
+    except Exception:
+        pass
+    return kwargs['instance_id']
+
+
 def main():
     manager.create_api(Fractal, methods=['GET', 'POST', 'DELETE', 'PUT'],
                        postprocessors={'POST': [generate_fractal]},
-                       exclude_columns=['image'],
+                       preprocessors={'DELETE_SINGLE': [delete_fractal]},
                        url_prefix='/v1')
     app.run(host=CONF.listen_address, port=CONF.bind_port)

@@ -31,6 +31,7 @@ from oslo_log import log
 import requests
 
 from faafo import queues
+from faafo import swift
 
 LOG = log.getLogger('faafo.worker')
 CONF = cfg.CONF
@@ -85,7 +86,9 @@ class JuliaSet(object):
 
     def _set_point(self):
         random.seed()
-        while True:
+        j = 1000
+        while True and j > 0:
+            j -= 1
             cx = random.random() * (self.xb - self.xa) + self.xa
             cy = random.random() * (self.yb - self.ya) + self.ya
             c = cx + cy * 1j
@@ -104,6 +107,7 @@ class Worker(ConsumerMixin):
 
     def __init__(self, connection):
         self.connection = connection
+        self.swiftc = swift.SwiftClient()
 
     def get_consumers(self, Consumer, channel):
         return [Consumer(queues=queues.task_queue,
@@ -130,7 +134,7 @@ class Worker(ConsumerMixin):
                   (task['uuid'], filename))
         with open(filename, "rb") as fp:
             size = os.fstat(fp.fileno()).st_size
-            image = base64.b64encode(fp.read())
+            image = fp.read()
         checksum = hashlib.sha256(open(filename, 'rb').read()).hexdigest()
         os.remove(filename)
         LOG.debug("removed temporary file %s" % filename)
@@ -138,11 +142,12 @@ class Worker(ConsumerMixin):
         result = {
             'uuid': task['uuid'],
             'duration': elapsed_time,
-            'image': image,
             'checksum': checksum,
             'size': size,
             'generated_by': socket.gethostname()
         }
+
+        self.swiftc.write_image(task['uuid'], image)
 
         # NOTE(berendt): only necessary when using requests < 2.4.2
         headers = {'Content-type': 'application/json',

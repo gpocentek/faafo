@@ -7,8 +7,8 @@
 {% for fractal in fractals.items %}
 <div class="row">
   <div class="col-xs-5 col-md-3">
-    <a href="/fractal/{{ fractal.uuid }}" class="thumbnail">
-      <img src="/fractal/{{ fractal.uuid }}" style="max-height: 300px; max-width: 300px">
+    <a href="{{ swift_url }}/{{ fractal.uuid }}" class="thumbnail">
+      <img src="{{ swift_url }}/{{ fractal.uuid }}" style="max-height: 300px; max-width: 300px">
     </a>
   </div>
   <div class="col-xs-7 col-md-9">
